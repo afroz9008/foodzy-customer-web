@@ -1,0 +1,631 @@
+{% extends 'base.html' %} {% block container %}
+
+<div id="autosuggest-react-component"></div>
+
+{% comment %} Special card Items{% endcomment %}
+<div id="cardRoot"></div>
+{% comment %} Special card Items end {% endcomment %}
+
+<div class="container category-container">
+  <div class="d-flex flex-wrap my-3">
+    {% for category in categories%}
+    <a
+      class="{% if forloop.counter > 4 %} d-none {% else %} m-1 category d-flex flex-row flex-grow-1 align-items-center mx-2 {% if selectedCategoryId == category.id %} active-class {% else %} {% endif %} {% endif %}"
+      href="?category={{category.id}}"
+      disabled="{% if selectedCategoryId == category.id %}disabled{% else %} {% endif %}"
+    >
+      <div class="circle d-flex justify-content-center align-items-center">
+        <img
+          src="{{category.image.url}}"
+          class="category-img animation-element img-fluid"
+          alt="..."
+        />
+      </div>
+      <div class="d-flex justify-content-center align-items-center">
+        <h5 class="category-name">{{category.name}}</h5>
+      </div>
+    </a>
+    {% endfor %}
+    <div
+      id="categoryCollapse"
+      class="collapse {% if selectedCategoryId > 4 %} collapse show {% else %} {% endif %} flex-grow-1"
+    >
+      <div class="d-flex flex-wrap">
+        {% for category in categories%}
+        <a
+          class="{% if forloop.counter <= 4 %} d-none {% else %} m-1 category d-flex flex-row flex-grow-1 align-items-center mx-2 {% endif %} {% if selectedCategoryId == category.id %} active-class {% else %} {% endif %}"
+          href="?category={{category.id}}"
+          disabled="{% if selectedCategoryId == category.id %}disabled{% else %} {% endif %}"
+        >
+          <div class="circle d-flex justify-content-center align-items-center">
+            <img
+              src="{{category.image.url}}"
+              class="category-img animation-element img-fluid"
+              alt="..."
+            />
+          </div>
+          <div class="d-flex justify-content-center align-items-center">
+            <h5 class="category-name">{{category.name}}</h5>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <p
+    class="collapseCategory collapsed px-2 {% if categories.count > 4 %} d-block {% else %} d-none {% endif %}"
+    data-toggle="collapse"
+    aria-expanded="{% if selectedCategoryId > 4 %} true {% else %} false {% endif %}"
+    data-target="#categoryCollapse"
+  >
+    <span
+      class="moreCategory align-items-center {% if selectedCategoryId > 4 %} d-none {% else %} d-flex {% endif %}"
+    >
+      View More Category <i class="mx-2 fa fa-chevron-circle-down"></i>
+    </span>
+    <span
+      class="lessCategory align-items-center {% if selectedCategoryId <= 4 %} d-none {% else %} d-flex {% endif %}"
+    >
+      View Less Category <i class="mx-2 fa fa-chevron-circle-up"></i>
+    </span>
+  </p>
+</div>
+
+<div class="container p-3 mb-5">
+  <div class="row my-3">
+    {% for product in products%}
+    <div
+      onclick='itemDetailOpener(event,"{{product.id}}")'
+      class="pointer col-6 co.bubbles=falsel-sm-6 col-md-3 col-lg-3 col-xl-3 item pb-3 px-2 item"
+    >
+      <div class="card shadow product">
+        <div class="d-flex justify-content-center">
+          <img
+            src="{{product.image.url}}"
+            class="card-img-top animation-element img-fluid card-img"
+            alt="..."
+          />
+        </div>
+        <div class="card-body">
+          <div>
+            <h5 class="item-title1">{{product.name}}</h5>
+            <p class="item-description mb-1">{{product.description}}</p>
+          </div>
+          <div>
+            <div class="row m-0">
+              <div class="col-6 p-0 d-flex align-items-center">
+                <h1 class="item-price d-flex align-items-center mb-0 pb-0">
+                  ₹{{product.price}}
+                </h1>
+              </div>
+              <div class="col-6 d-flex justify-content-center p-0">
+                <div class="ml-auto" id="product-{{product.id}}">
+                  <div
+                    onclick="addToCart(event,{{product.id}})"
+                    class="itemsquare d-flex justify-content-center align-items-center"
+                    style="height: 30px; width: 30px"
+                  >
+                    <i class="fa fa-cart-plus"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<div class="hid-box" id="fullCartContainer">
+  <div
+    class="d-flex w-100 p-2 justify-content-start closeCart align-content-center"
+  >
+    <button
+      class="closeCart pointer"
+      onclick="cartTogglee('translateY(200vh)','flex','close')"
+    >
+      <i class="fa fa-chevron-down"></i>
+    </button>
+    <h3 class="m-0 ml-2 px-1">
+      My Cart<span id="cartTotalItems" class="px-1"></span>
+    </h3>
+  </div>
+  <div
+    class="container d-flex flex-column"
+    style="height: 90%"
+    id="fullScreenCart"
+  ></div>
+</div>
+<button class="orderNow-btn">Order Now</button>
+
+{%endblock%} {% block script %}
+<script>
+  const footerCart = document.getElementById("footer-cart");
+  const cartContainer = document.getElementById("cart-container");
+  const cartTotalMd = document.getElementById("totalCart-md");
+  const cartTotalSm = document.getElementById("totalCart-sm");
+  const data = JSON.parse("{{jsonProducts|escapejs}}");
+  const carts = JSON.parse(localStorage.getItem("cartdata"));
+
+  const itemDetailOpener = (event, id) => {
+    location.replace(`detail/${id}`);
+  };
+
+  const cartTogglee = (slide = false, display = false, type = false) => {
+    const cartC = document.getElementById("cart-container");
+    const bodyElement = document.getElementById("root");
+    const fullScreenCart = document.getElementById("fullCartContainer");
+    const localCart = JSON.parse(localStorage.getItem("cartdata"));
+    document.getElementById(
+      "cartTotalItems"
+    ).innerText = `(${localCart.length})`;
+
+    if (slide) {
+      if (display === "flex") {
+        cartC.style.opacity = "1";
+        bodyElement.style.overflow = "auto";
+      } else if (display === "none") {
+        bodyElement.style.overflow = "hidden";
+        cartC.style.opacity = "0";
+      }
+      fullScreenCart.style.transform = slide;
+    }
+
+    const fullCartConatiner = document.getElementById("fullScreenCart");
+    fullCartConatiner.innerHTML = ``;
+    if (!localCart?.length) {
+      fullCartConatiner.innerHTML = `<div class="m-auto animation-element">
+        <h3 class='text-muted text-center p-4'>Cart Is Empty</h3>
+          <button
+            class="m-auto px-2 text-light category cartBtn active-class"
+            onclick="cartTogglee('translateY(200vh)','flex','close')"
+          >
+          Go to Home
+        </button>
+      </div>`;
+    }
+    localCart.forEach((p, i) => {
+      if (!i) {
+        const subTotal = localCart.reduce(
+          (p, c) => p + c.fields.price * c.fields.quantity,
+          0
+        );
+        console.log(localCart);
+        fullCartConatiner.innerHTML = `<div class="p-3 mt-2" bg-light>
+          <div class="row">
+            <div class="col-6">
+              Sub Total 
+            </div>
+            <div class="col-6  text-right totalDescription">
+            ₹ ${subTotal}
+            </div>
+            <div class="col-6">
+              Discount(4%) 
+            </div>
+            <div class="col-6  text-right totalDescription">
+             - ₹ ${(subTotal * 4) / 100}
+            </div>
+            <div class="col-12  text-right  totalDescription">
+            <span style="border-top: 1px solid #ccc;font-weight:700">
+            Total : ₹ ${subTotal - (subTotal * 4) / 100}
+            </span>
+            </div>
+          </div>
+        </div>`;
+      }
+      fullCartConatiner.innerHTML += `
+            <div class="cartItemCard my-3 p-1">
+              <div class="d-flex">
+                <div class="cart-img-container d-flex justify-content-center">
+                  <div class="cart-img-container">
+                    <img src="/product/${
+                      p.fields.image
+                    }" class="img-fluid" alt="cart-img">
+                  </div>
+                </div>
+                <div class="ml-3 flex-grow-1">
+                  <div>
+                    <h3 class="cart-item-title">${p.fields.name}</h3>
+                    <div class="d-flex align-item-center justify-content-between">
+                      <h3 class="cart-item-title m-0">₹${p.fields.price}</h3>
+                      <div>
+                        <div class="d-flex delete-contain">
+                           <button  onclick='quantityHandler(event,${
+                             p.pk
+                           },"decreament","cart")' class="btn  detail-increment-item d-flex justify-content-center align-items-center remove-to-cart-informer">
+                            ${
+                              p.fields.quantity === 1
+                                ? '<i class="fa fa-trash-o" aria-hidden="true"></i>'
+                                : '<i class="fa fa-minus" aria-hidden="true"></i>'
+                            }
+                          </button>
+                          <p class="cart-item1 px-sm-2 px-1 px-md-1 px-lg-1 px-xl-3 mb-0">${
+                            p.fields.quantity
+                          }</p>
+                          <button onclick='quantityHandler(event,${
+                            p.pk
+                          },"increament","cart")' class="btn  detail-increment-item d-flex justify-content-center align-items-center increment-to-cart-informer">
+                              <i class="fa fa-plus" aria-hidden="true"></i>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+    });
+  };
+
+  const addToCart = (event, id) => {
+    window.event.stopPropagation();
+    const localCart = JSON.parse(localStorage.getItem("cartdata"));
+    let product = data.find((p) => p.pk === id);
+    product.fields.quantity = 1;
+    const isFoundItem =
+      localCart && localCart.findIndex((p) => p.pk === product.pk);
+    let carts = [];
+    if (localCart && isFoundItem >= 0) {
+      let localProduct = localCart.find((p) => p.pk === id);
+      carts = localCart;
+      const qty = localProduct.fields.quantity;
+      const total = qty ? qty + 1 : 1;
+      localProduct = {
+        ...localProduct,
+        fields: { ...product.fields, quantity: total },
+      };
+      localCart.splice(isFoundItem, 1);
+      localCart.unshift(localProduct);
+      carts = localCart;
+    } else {
+      carts = localCart ? [product, ...localCart] : [product];
+    }
+    localStorage.setItem("cartdata", JSON.stringify(carts));
+    displayCart(carts);
+  };
+
+  const quantityHandler = (event, id, type, isCart = false) => {
+    window.event.stopPropagation();
+    const localCart = JSON.parse(localStorage.getItem("cartdata"));
+
+    let carts = [];
+    const isFoundItem = localCart && localCart.findIndex((p) => p.pk === id);
+    if (type === "increament") {
+      let localProduct = localCart.find((p) => p.pk === id);
+      const total = +localProduct.fields.quantity + 1;
+      carts = localCart;
+      localProduct = {
+        ...localProduct,
+        fields: { ...localProduct.fields, quantity: total },
+      };
+      if (!isCart) {
+        localCart.splice(isFoundItem, 1);
+        localCart.unshift(localProduct);
+      } else {
+        localCart[isFoundItem] = localProduct;
+      }
+      carts = localCart;
+    }
+    if (type === "decreament") {
+      let localProduct = localCart.find((p) => p.pk === id);
+      const total = +localProduct.fields.quantity - 1;
+      carts = localCart;
+      localProduct = {
+        ...localProduct,
+        fields: { ...localProduct.fields, quantity: total },
+      };
+      if (total) {
+        if (!isCart) {
+          localCart.splice(isFoundItem, 1);
+          localCart.unshift(localProduct);
+        } else {
+          localCart[isFoundItem] = localProduct;
+        }
+      } else if (!isCart) {
+        localCart.splice(isFoundItem, 1);
+        const quantityDisplayer = document.getElementById(`product-${id}`);
+        quantityDisplayer.innerHTML = `<div class="ml-auto" id="product-${id}">
+              <div onclick="addToCart(event,${id})" class="itemsquare d-flex justify-content-center align-items-center"  style="height: 30px; width: 30px">
+                <i class="fa fa-cart-plus"></i>
+              </div>
+            </div>`;
+      } else if (!total && isCart) {
+        const quantityDisplayer = document.getElementById(`product-${id}`);
+        if (quantityDisplayer) {
+          quantityDisplayer.innerHTML = `<div class="ml-auto" id="product-${id}">
+              <div  onclick="addToCart(event,${id})" class="itemsquare d-flex justify-content-center align-items-center"  style="height: 30px; width: 30px">
+                <i class="fa fa-cart-plus"></i>
+              </div>
+            </div>`;
+        }
+        localCart.splice(isFoundItem, 1);
+      }
+      carts = localCart;
+    }
+
+    localStorage.setItem("cartdata", JSON.stringify(carts));
+    displayCart(carts);
+    cartTogglee(false, false, "close");
+  };
+
+  const displayCart = (allCart = carts) => {
+    if (allCart && allCart.length) {
+      footerCart.style.display = "flex";
+      cartContainer.classList.remove("d-none");
+      cartContainer.classList.add("d-flex");
+    } else {
+      footerCart.style.display = "none";
+      cartContainer.classList.remove("d-flex");
+      cartContainer.classList.add("d-none");
+    }
+
+    footerCart.innerHTML = "";
+    allCart?.forEach((p, i) => {
+      const quantityDisplayer = document.getElementById(`product-${p.pk}`);
+
+      if (quantityDisplayer)
+        quantityDisplayer.innerHTML = `<div><div class="row delete-contain">
+             <button  onclick='quantityHandler(event,${
+               p.pk
+             },"decreament")' class="btn  detail-increment-item d-flex justify-content-center align-items-center remove-to-cart-informer">
+                ${
+                  p.fields.quantity === 1
+                    ? '<i class="fa fa-trash-o" aria-hidden="true"></i>'
+                    : '<i class="fa fa-minus" aria-hidden="true"></i>'
+                }
+             </button>
+             <p class="cart-item1 px-sm-2 px-1 px-md-1 px-lg-1 px-xl-3 mb-0">${
+               p.fields.quantity
+             }</p>
+             <button onclick='quantityHandler(event,${
+               p.pk
+             },"increament")' class="btn  detail-increment-item d-flex justify-content-center align-items-center increment-to-cart-informer">
+                 <i class="fa fa-plus" aria-hidden="true"></i>
+             </button>
+             </div>
+         </div>`;
+
+      footerCart.innerHTML += `
+             <div class="footer-square1 mr-3 cart-item-informer ${
+               i >= 5 ? "d-none" : "d-none d-md-block "
+             }">
+               <div class="footer-circle d-flex justify-content-center align-items-center">
+                 <h1 class="footer-cart-item  mb-0 pb-0">${
+                   p.fields.quantity
+                 }</h1>
+               </div>
+               <div class="d-flex justify-content-center align-items-center ">
+                 <img src="/product/${
+                   p.fields.image
+                 }" class="react-reveal footer-img" alt="footer-img">
+               </div>
+             </div>
+              <div class="footer-square1 mr-3 cart-item-informer ${
+                i >= 3 ? "d-none" : "d-block d-md-none "
+              }">
+               <div class="footer-circle d-flex justify-content-center align-items-center">
+                 <h1 class="footer-cart-item  mb-0 pb-0">${
+                   p.fields.quantity
+                 }</h1>
+               </div>
+               <div class="d-flex justify-content-center align-items-center ">
+                 <img src="/product/${
+                   p.fields.image
+                 }" class="react-reveal footer-img" alt="footer-img">
+               </div>
+             </div>
+             `;
+      cartTotalMd.innerText = i >= 5 ? `+${i - 4}` : "";
+      cartTotalSm.innerText = i >= 3 ? `+${i - 2}` : "";
+    });
+  };
+  displayCart();
+</script>
+{% comment %} Use React with Django {% endcomment %}
+<script type="text/babel">
+  const autoSuggestReactComponent = document.getElementById(
+    "autosuggest-react-component"
+  );
+
+  const SearchItemComponet = () => {
+    const [state, setState] = React.useState({
+      value: "",
+      suggestions: [],
+      suggestionData: [],
+    });
+
+    const getSuggestions = (value) => {
+      const inputValue = value.trim().toLowerCase();
+      const inputLength = inputValue.length;
+
+      return inputLength === 0
+        ? []
+        : state.suggestionData.filter((lang) =>
+            lang.fields.name.toLowerCase().includes(inputValue)
+          );
+    };
+
+    const getSuggestionValue = (suggestion) => suggestion.fields.name;
+
+    const renderSuggestion = (suggestion) => (
+      <div className="d-flex align-items-center">
+        <img
+          src={`/product/${suggestion.fields.image}`}
+          className="search-item-image"
+        />
+        <span className="search-item-name">{suggestion.fields.name}</span>
+        <span className="search-item-price"> ₹{suggestion.fields.price}</span>
+      </div>
+    );
+
+    const onChange = (event, { newValue }) => {
+      setState((prev) => ({
+        ...prev,
+        value: newValue,
+      }));
+      searchItems(newValue);
+    };
+
+    const onSuggestionsFetchRequested = ({ value }) => {
+      setState((prev) => ({
+        ...prev,
+        suggestions: getSuggestions(value),
+      }));
+    };
+
+    const onSuggestionsClearRequested = () => {
+      setState((prev) => ({
+        ...prev,
+        suggestions: [],
+      }));
+    };
+
+    const searchItems = (name) => {
+      if (name)
+        axios
+          .get(`/api/search/${name}`)
+          .then((res) =>
+            setState((prev) => ({ ...prev, suggestionData: res.data }))
+          )
+          .then((res) => res)
+          .catch((er) => er);
+    };
+    const inputProps = {
+      placeholder: "Search Item...",
+      value: state.value,
+      onChange: onChange,
+    };
+
+    return (
+      <div className="container d-flex justify-content-center position-relative">
+        <i className="fa fa-search search-icon"></i>
+        <Autosuggest
+          suggestions={state.suggestions}
+          onSuggestionsFetchRequested={onSuggestionsFetchRequested}
+          onSuggestionsClearRequested={onSuggestionsClearRequested}
+          getSuggestionValue={getSuggestionValue}
+          renderSuggestion={renderSuggestion}
+          inputProps={inputProps}
+        />
+      </div>
+    );
+  };
+
+  ReactDOM.render(<SearchItemComponet />, autoSuggestReactComponent);
+</script>
+<script type="text/babel">
+  const domContainer = document.getElementById("cardRoot");
+  const cardDataJson = JSON.parse("{{specialCardItems|escapejs}}");
+  const style1 = { maxWidth: 400, minHeight: 140 };
+  const reducedCardData = [];
+  for (let i = 0; i < cardDataJson.length; i += 2) {
+    console.log(cardDataJson[i + 1]);
+    if (cardDataJson[i + 1])
+      reducedCardData.push([cardDataJson[i], cardDataJson[i + 1]]);
+    else reducedCardData.push([cardDataJson[i]]);
+  }
+
+  const Card = ({ p, ...props }) => (
+    <div
+      className="special-card flex-grow-1 p-2 bg-white mx-auto row m-md-2 animation-element"
+      style={style1}
+    >
+      <div className="col-8 d-flex flex-column justify-content-center">
+        <h4 className="card-item-title">{p.fields.name}</h4>
+        <h6 className="card-item-description text-muted">
+          {p.fields.description}
+        </h6>
+        <h1 className="item-price d-flex align-items-center mb-0 pb-0">
+          ₹{p.fields.price}
+        </h1>
+      </div>
+      <div className="col-4 d-flex align-items-center justify-content-center">
+        <img
+          src={`/product/${p.fields.image}`}
+          className="card-img-top img-fluid special-card-image"
+          alt="..."
+        />
+      </div>
+    </div>
+  );
+
+  const CardContainer = ({ cardData, ...props }) => {
+    return (
+      <div className="container">
+        <div
+          id="carouselExampleControls"
+          className="carousel slide  d-none d-md-block"
+          data-ride="carousel"
+          touch={true}
+        >
+          <div className="carousel-inner">
+            {reducedCardData.map((p, i) => (
+              <div class={`carousel-item p-3 ${!i && "active"}`}>
+                <div className="d-flex align-items-center justify-content-center">
+                  {p.map((d) => (
+                    <Card p={d} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <a
+            className="carousel-control-prev d-flex align-items-center justify-content-start"
+            href="#carouselExampleControls"
+            role="button"
+            data-slide="prev"
+          >
+            <span
+              className="fa fa-chevron-circle-left text-warning"
+              aria-hidden="true"
+            ></span>
+            <span className="sr-only">Previous</span>
+          </a>
+          <a
+            className="carousel-control-next d-flex align-items-center justify-content-end"
+            href="#carouselExampleControls"
+            role="button"
+            data-slide="next"
+          >
+            <span
+              className="fa fa-chevron-circle-right text-warning"
+              aria-hidden="true"
+            ></span>
+            <span className="sr-only">Next</span>
+          </a>
+        </div>
+
+        <div
+          id="carouselExampleControls1"
+          className="carousel slide  d-block d-md-none"
+          data-ride="carousel"
+          data-interval="2000"
+        >
+          <ol class="carousel-indicators">
+            {cardData.map((p, i) => (
+              <li
+                data-target="#carouselExampleIndicators"
+                data-slide-to={i}
+                onClick={() => $(".carousel").carousel(i)}
+                class={`card-indicator ${!i && "active"}`}
+              ></li>
+            ))}
+          </ol>
+          <div className="carousel-inner">
+            {cardData.map((p, i) => (
+              <div class={`carousel-item p-3 ${!i && "active"}`}>
+                <Card p={p} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  ReactDOM.render(<CardContainer cardData={cardDataJson} />, domContainer);
+</script>
+{% comment %} Use React with Django {% endcomment %} {%endblock%}
